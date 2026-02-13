@@ -4,7 +4,7 @@
 local Players = game:GetService("Players")
 local ChatService = game:GetService("Chat")
 local HttpService = game:GetService("HttpService")
-local CoreGui = game:GetService("CoreGui")
+local CoreGui = game:GetService("CoreGui.CustomChat.Frame")
 
 local player = Players.LocalPlayer
 
