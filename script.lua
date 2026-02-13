@@ -1,13 +1,20 @@
--- Custom Chat v1.0
--- Кастомный чат без цензуры (локальный клиентский фильтр)
+-- Custom Chat v2.0
+-- Кастомный чат без цензуры с защитой от ошибок HTTP
 
 local Players = game:GetService("Players")
 local ChatService = game:GetService("Chat")
+local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
 
 local player = Players.LocalPlayer
 
--- Создаём окно чата
+-- Проверка HttpService
+if not HttpService:IsHttpEnabled() then
+    warn("HttpService отключён. Включите в настройках игры.")
+    return
+end
+
+-- Создание GUI
 local chatGui = Instance.new("ScreenGui")
 chatGui.Name = "CustomChat"
 chatGui.Parent = CoreGui
@@ -20,6 +27,7 @@ frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 frame.BorderSizePixel = 1
 frame.BorderColor3 = Color3.fromRGB(60, 60, 60)
 frame.CornerRadius = UDim.new(0, 8)
+frame.Visible = true
 
 -- Заголовок
 local title = Instance.new("TextLabel")
@@ -73,57 +81,75 @@ sendBtn.BackgroundColor3 = Color3.fromRGB(60, 120, 220)
 sendBtn.BorderSizePixel = 0
 sendBtn.TextSize = 14
 
--- Буфер сообщений (чтобы не дублировать)
+-- Буфер сообщений
 local messageBuffer = {}
 
--- Функция: добавить сообщение в кастомный чат
+-- Функция добавления сообщения
 local function addMessage(author, text)
     local line = string.format("[%s] %s", author, text)
     table.insert(messageBuffer, line)
     messages.Text = table.concat(messageBuffer, "\n") .. "\n"
-    -- Ограничиваем до 100 последних сообщений
+    
+    -- Ограничение до 100 сообщений
     if #messageBuffer > 100 then
         table.remove(messageBuffer, 1)
     end
 end
 
--- Перехватываем входящие сообщения чата
+-- Перехват входящих сообщений
 ChatService.OnMessageReceived:Connect(function(text, fromSpeaker)
     local speaker = Players:FindFirstChild(fromSpeaker)
     if speaker then
         addMessage(speaker.Name, text)
     else
-        addMessage("Unknown", text)  -- На случай, если спикер не найден
+        addMessage("Unknown", text)
     end
 end)
 
--- Обработчик отправки сообщения
+-- Отправка сообщения
 sendBtn.MouseButton1Click:Connect(function()
-    local text = input.Text
+    local text = input.Text:trim()
     if text ~= "" then
-        -- Отправляем в обычный чат Roblox (без цензуры на клиенте)
         ChatService:Chat(player, text)
-        -- Добавляем в кастомный чат (видимо только вам)
         addMessage(player.Name, text)
         input.Text = ""
     end
 end)
 
--- Альтернатива: Enter для отправки
-input.Focused:Connect(function()
-    input:CaptureFocus()
-end)
-
+-- Отправка по Enter
 input:GetPropertyChangedSignal("Text"):Connect(function()
-    if input.Text:endswith("\n") then
+    if input.Text:sub(-1) == "\n" then
         sendBtn.MouseButton1Click:Fire()
+        input.Text = input.Text:sub(1, -2)  -- Удаляем \n
     end
 end)
 
--- Инициализация: загружаем последние сообщения из обычного чата (если есть)
+-- Загрузка истории чата
 for _, msg in ipairs(ChatService:GetMessageHistory()) do
     addMessage(msg.SpeakerName, msg.Message)
 end
 
--- Уведомление о запуске
+-- Приветственное сообщение
 addMessage("SYSTEM", "Custom Chat активирован. Пишите без цензуры!")
+
+-- Дополнительная защита от ошибок
+local function safeHttpGet(url)
+    local success, response = pcall(function()
+        return HttpService:GetAsync(url, false, {
+            ["User-Agent"] = "Roblox"
+        })
+    end)
+    
+    if success then
+        return response
+    else
+        warn("HTTP-ошибка:", response)
+        return nil
+    end
+end
+
+-- Пример использования (если нужно загружать скрипты извне)
+-- local scriptCode = safeHttpGet("https://raw.githubusercontent.com/YourUsername/Custom-Chat-Script/main/script.lua")
+-- if scriptCode then
+--     loadstring(scriptCode)()
+-- end
